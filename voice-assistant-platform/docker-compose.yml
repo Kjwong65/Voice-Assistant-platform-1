@@ -1,0 +1,220 @@
+version: '3.8'
+
+services:
+  # ==============================================
+  # Infrastructure Services
+  # ==============================================
+  
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: voice-assistant-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-voice_assistant}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - voice-assistant-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: voice-assistant-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - voice-assistant-network
+
+  # ==============================================
+  # Observability Services
+  # ==============================================
+  
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: voice-assistant-jaeger
+    environment:
+      COLLECTOR_ZIPKIN_HOST_PORT: :9411
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # Jaeger collector
+      - "14250:14250"
+      - "9411:9411"
+    networks:
+      - voice-assistant-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: voice-assistant-prometheus
+    volumes:
+      - ./infrastructure/docker/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - voice-assistant-network
+
+  # ==============================================
+  # Application Services
+  # ==============================================
+  
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    container_name: voice-assistant-gateway
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=${GATEWAY_PORT:-3000}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+    ports:
+      - "${GATEWAY_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/gateway:/app
+      - /app/node_modules
+    networks:
+      - voice-assistant-network
+
+  asr:
+    build:
+      context: .
+      dockerfile: services/asr/Dockerfile
+    container_name: voice-assistant-asr
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=${ASR_PORT:-5001}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WHISPER_MODEL=${WHISPER_MODEL:-whisper-1}
+    ports:
+      - "${ASR_PORT:-5001}:5001"
+    volumes:
+      - ./services/asr:/app
+      - /app/node_modules
+    networks:
+      - voice-assistant-network
+
+  llm:
+    build:
+      context: .
+      dockerfile: services/llm/Dockerfile
+    container_name: voice-assistant-llm
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=${LLM_PORT:-5002}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o}
+      - DATABASE_URL=${DATABASE_URL}
+      - RAG_SERVICE_URL=http://rag:5004
+    ports:
+      - "${LLM_PORT:-5002}:5002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/llm:/app
+      - /app/node_modules
+    networks:
+      - voice-assistant-network
+
+  tts:
+    build:
+      context: .
+      dockerfile: services/tts/Dockerfile
+    container_name: voice-assistant-tts
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=${TTS_PORT:-5003}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TTS_MODEL=${TTS_MODEL:-tts-1}
+      - TTS_VOICE=${TTS_VOICE:-alloy}
+    ports:
+      - "${TTS_PORT:-5003}:5003"
+    volumes:
+      - ./services/tts:/app
+      - /app/node_modules
+    networks:
+      - voice-assistant-network
+
+  rag:
+    build:
+      context: .
+      dockerfile: services/rag/Dockerfile
+    container_name: voice-assistant-rag
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=${RAG_PORT:-5004}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - UPLOAD_DIR=${UPLOAD_DIR:-./uploads}
+    ports:
+      - "${RAG_PORT:-5004}:5004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/rag:/app
+      - /app/node_modules
+      - rag_uploads:/app/uploads
+    networks:
+      - voice-assistant-network
+
+  console:
+    build:
+      context: .
+      dockerfile: services/console/Dockerfile
+    container_name: voice-assistant-console
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=${CONSOLE_PORT:-3001}
+      - NEXT_PUBLIC_GATEWAY_URL=http://localhost:${GATEWAY_PORT:-3000}
+      - NEXT_PUBLIC_RAG_URL=http://localhost:${RAG_PORT:-5004}
+    ports:
+      - "${CONSOLE_PORT:-3001}:3001"
+    volumes:
+      - ./services/console:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - voice-assistant-network
+
+networks:
+  voice-assistant-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  rag_uploads:

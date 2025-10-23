@@ -1,0 +1,66 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'voice-assistant-platform'
+    environment: 'development'
+
+scrape_configs:
+  # Gateway Service
+  - job_name: 'gateway'
+    static_configs:
+      - targets: ['gateway:3000']
+        labels:
+          service: 'gateway'
+    metrics_path: '/metrics'
+
+  # ASR Service
+  - job_name: 'asr'
+    static_configs:
+      - targets: ['asr:5001']
+        labels:
+          service: 'asr'
+    metrics_path: '/metrics'
+
+  # LLM Service
+  - job_name: 'llm'
+    static_configs:
+      - targets: ['llm:5002']
+        labels:
+          service: 'llm'
+    metrics_path: '/metrics'
+
+  # TTS Service
+  - job_name: 'tts'
+    static_configs:
+      - targets: ['tts:5003']
+        labels:
+          service: 'tts'
+    metrics_path: '/metrics'
+
+  # RAG Service
+  - job_name: 'rag'
+    static_configs:
+      - targets: ['rag:5004']
+        labels:
+          service: 'rag'
+    metrics_path: '/metrics'
+
+  # PostgreSQL Exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+        labels:
+          service: 'database'
+
+  # Redis Exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+        labels:
+          service: 'cache'
+
+  # Prometheus Self-Monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

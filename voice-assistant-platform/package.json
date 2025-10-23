@@ -1,0 +1,58 @@
+{
+  "name": "voice-assistant-platform",
+  "version": "1.0.0",
+  "description": "Enterprise AI Voice Assistant Platform with RAG, WebRTC, and Multi-Tenant Support",
+  "private": true,
+  "workspaces": [
+    "services/*",
+    "shared/*"
+  ],
+  "scripts": {
+    "install": "npm install --workspaces",
+    "build": "npm run build --workspaces",
+    "dev": "docker-compose up",
+    "dev:gateway": "npm run dev --workspace=services/gateway",
+    "dev:asr": "npm run dev --workspace=services/asr",
+    "dev:llm": "npm run dev --workspace=services/llm",
+    "dev:tts": "npm run dev --workspace=services/tts",
+    "dev:rag": "npm run dev --workspace=services/rag",
+    "dev:console": "npm run dev --workspace=services/console",
+    "test": "npm run test --workspaces",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "typecheck": "tsc --noEmit --workspaces",
+    "clean": "rm -rf node_modules services/*/node_modules services/*/dist shared/*/node_modules shared/*/dist",
+    "db:migrate": "cd infrastructure/docker && docker-compose exec postgres psql -U postgres -d voice_assistant -f /migrations/init.sql",
+    "db:seed": "npm run seed --workspace=services/rag"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/voice-assistant-platform"
+  },
+  "keywords": [
+    "voice-assistant",
+    "ai",
+    "rag",
+    "webrtc",
+    "openai",
+    "whisper",
+    "gpt-4",
+    "tts",
+    "speech-recognition",
+    "conversational-ai"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
