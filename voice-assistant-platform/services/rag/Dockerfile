@@ -7,7 +7,7 @@ RUN apk add --no-cache python3 make g++
 
 # Copy package files
 COPY services/rag/package*.json ./services/rag/
-COPY shared/package*.json ./shared/ 2>/dev/null || true
+COPY shared/package*.json ./shared/
 
 # Install dependencies
 WORKDIR /app/services/rag
