@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Copy package files
 COPY services/tts/package*.json ./services/tts/
-COPY shared/package*.json ./shared/ 2>/dev/null || true
+COPY shared/package*.json ./shared/
 
 # Install dependencies
 WORKDIR /app/services/tts
